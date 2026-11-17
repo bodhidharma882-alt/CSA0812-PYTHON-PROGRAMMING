@@ -1,0 +1,501 @@
+SIMATS ONLINE LAB • CSA08
+ASSIGNMENT 3
+Lists, Sets, Tuples and Dictionaries
+Student Name
+logeshwaran EM
+Register Number
+Assignment
+Total Marks
+Questions
+1912260240
+CSA08 – Assignment 3
+50
+Q1–Q7
+Important: This is a worked reference report. Execute every program yourself, capture your own output screenshots, replace illustrative
+benchmark timings with your computer's measurements, and add your GitHub link before submission.
+Repository name required by the assignment: CSA08
+1912260240-Assignment3
+Page 1
+logeshwaran EM | Register No. 1912260240 | CSA08 Assignment 3
+Q1 – Lists and Slicing: Daily Rainfall Records (6 Marks)
+1. Program: weekly totals, extremes, moving averages and dry days
+def rainfall_report(readings):
+    weekly_totals = [sum(readings[i:i+7]) for i in range(0, len(readings), 7)]
+    if readings:
+        wettest_day = (max(readings), readings.index(max(readings)))
+        driest_day = (min(readings), readings.index(min(readings)))
+    else:
+        wettest_day = driest_day = None
+    moving = [sum(readings[i:i+7])/7
+              for i in range(max(0, len(readings)-6))]
+    dry_days = [i+1 for i, value in enumerate(readings) if value == 0]
+    return weekly_totals, wettest_day, driest_day, moving, dry_days
+# Example (365 values)
+rain = [float((i * 7) % 19) for i in range(365)]
+weekly, wettest, driest, moving, dry = rainfall_report(rain)
+print("weeks:", len(weekly), "last week days:", len(rain) % 7 or 7)
+print("wettest reading/index:", wettest)
+print("driest reading/index:", driest)
+print("moving averages:", len(moving))
+print("dry days:", dry[:10])
+Weekly totals use slices of seven days; the final slice may contain fewer than seven readings if the list length is not a multiple of
+seven. A 365-day year therefore has 52 complete weeks and one final day.
+2. Pseudocode and slicing
+Moving-average pseudocode: if fewer than 7 readings, return an empty result; otherwise, for each start position from 0 to n-7, add
+the seven readings and divide by 7.
+readings[7:14] returns items at indexes 7 through 13 (the second block of seven). readings[-7:] returns the final seven items.
+readings[::7] returns every seventh item, starting at index 0; it does not calculate weekly totals.
+3. List operations and complexity
+A list is suitable because readings are ordered by day, supports indexing and slicing, and grows dynamically. append is O(1)
+amortised; insert at an arbitrary position is O(n) because later elements shift; pop() at the end is O(1), while pop(i) is O(n); sort is O(n
+log n).
+Naive moving average performs 7 additions for each of n-6 windows: 7(n-6), which is O(7n)=O(n). A running-sum method uses 7
+initial additions and two arithmetic updates per next window (subtract the leaving value and add the entering value), giving O(n) with
+fewer operations.
+4. Sample timings (three-run averages in this environment)
+Readings
+Naive (s)
+Running sum (s)
+365
+0.00011
+0.00003
+Same result
+False
+36500
+365000
+0.00732
+0.09576
+Use this repeatable experiment on your computer:
+import random, time
+for n in (365, 36500, 365000):
+    readings = [random.uniform(0, 50) for _ in range(n)]
+    # time naive_avg(readings) and running_avg(readings)
+0.00330
+0.04362
+False
+False
+For an empty list or fewer than seven readings, the 7-day moving-average result is empty; weekly totals can still return an empty list
+or a partial-week total according to the reporting rule.
+5. Late reading and alternatives
+Inserting a late reading at its date in a Python list costs O(n) due to shifting. A list remains suitable for a small or moderate yearly
+dataset and simple sequential reports. For frequent insertions at both ends, deque is useful; for date-keyed random access or
+missing dates, a dictionary may be appropriate.
+A deque(maxlen=7) can maintain a rolling seven-day window; update a running sum as old readings leave and new ones enter. This
+is O(n) total time and O(7)=O(1) window space. A full date dictionary provides average O(1) lookup by date but needs O(n) storage
+and extra date-key management.
+Q2 – Tuples, Mutability and Copying (7 Marks)
+1. Complete TODO 1 and demonstrate aliasing
+Page 2
+logeshwaran EM | Register No. 1912260240 | CSA08 Assignment 3
+import copy, sys, time
+rows, cols = 3, 4
+bad = [[0] * cols] * rows
+bad[0][1] = 7
+good = [[0 for _ in range(cols)] for _ in range(rows)]
+good[0][1] = 7
+print("bad :", bad)
+print("good:", good)
+print(bad[0] is bad[1], good[0] is good[1])
+stops = {(13.0827, 80.2707): "Chennai Central",
+         (13.0418, 80.2341): "T. Nagar"}
+print(stops[(13.0418, 80.2341)])
+Expected output:
+bad : [[0, 7, 0, 0], [0, 7, 0, 0], [0, 7, 0, 0]]
+good: [[0, 7, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]
+True False
+T. Nagar
+2. Tuple keys, copying and mutability
+A tuple containing only hashable immutable values can be a dictionary key because its hash remains stable. A list is mutable and
+unhashable, so using [13.0418, 80.2341] as a key raises TypeError: unhashable type: 'list'.
+Memory concept: bad = [[0]*3]*3 creates one inner list referenced by all three outer positions. The corrected comprehension creates
+three distinct inner lists. In a shallow copy, the outer container is new but nested objects are shared. A deep copy recursively copies
+nested objects.
+original = [[1, 2], [3, 4]]
+alias = original
+shallow1 = copy.copy(original)
+shallow2 = original[:]
+deep = copy.deepcopy(original)
+print(alias is original)             # True
+print(shallow1 is original)          # False
+print(shallow1[0] is original[0])    # True
+print(deep[0] is original[0])        # False
+def add_value(values):
+    values.append(99)
+data = [1, 2]
+add_value(data)
+print(data)                          # [1, 2, 99]
+mixed = ([1, 2], "bus")
+mixed[0].append(3)                   # allowed: inner list is mutable
+print(mixed)                         # ([1, 2, 3], 'bus')
+A shallow copy is enough when the contents are immutable or when sharing nested objects is intended. Deep copy is needed when
+independent nested mutable objects are required. A function receives a reference to the same list object, so mutating it changes
+what the caller sees.
+3. Tuple/list memory and timing experiment
+values_list = list(range(1_000_000))
+values_tuple = tuple(values_list)
+print("list bytes:", sys.getsizeof(values_list))
+print("tuple bytes:", sys.getsizeof(values_tuple))
+t = time.perf_counter()
+x = tuple(range(1_000_000))
+tuple_create = time.perf_counter() - t
+t = time.perf_counter()
+y = list(range(1_000_000))
+list_create = time.perf_counter() - t
+t = time.perf_counter(); _ = x[500_000]; tuple_index = time.perf_counter()-t
+t = time.perf_counter(); _ = y[500_000]; list_index = time.perf_counter()-t
+print(tuple_create, list_create, tuple_index, list_index)
+sys.getsizeof reports the container's shallow size, not the memory of all referenced integer objects. Both tuple and list indexing are
+O(1). Actual creation and size results depend on the Python build and platform.
+4. Conclusion
+Use a tuple for a fixed record such as (latitude, longitude) that should not be modified and may need to be a dictionary key.
+Immutability prevents accidental changes to the container and supports reliable hashing, provided all tuple members are hashable.
+Q3 – Dictionaries: Farmer Helpline Complaint Analysis (7 Marks)
+Page 3
+logeshwaran EM | Register No. 1912260240 | CSA08 Assignment 3
+1. Complete TODO 1 and TODO 2
+calls = [
+    "seeds not received seeds delayed",
+    "fertiliser price high",
+    "seeds price high subsidy not received",
+]
+STOP = {"not", "high"}
+def frequencies(texts, stop):
+    counts = {}
+    for text in texts:
+        for word in text.lower().split():
+            word = word.strip(".,!?;:")
+            if word and word not in stop:
+                counts[word] = counts.get(word, 0) + 1
+    return counts
+def top(counts, k):
+    return sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:k]
+print(top(frequencies(calls, STOP), 3))
+Expected output: [('seeds', 3), ('price', 2), ('received', 2)]. Price comes before received because counts tie at 2 and the secondary sort
+key is alphabetical.
+2. Group by district and crop; use get and setdefault
+complaints = [
+    {"district": "Ariyalur", "crop": "Rice", "text": "seeds delayed"},
+    {"district": "Trichy", "crop": "Cotton", "text": "water shortage"},
+    {"district": "Ariyalur", "crop": "Rice", "text": "fertiliser issue"},
+]
+by_district = {}
+by_crop = {}
+for item in complaints:
+    by_district.setdefault(item["district"], []).append(item["text"])
+    by_crop.setdefault(item["crop"], []).append(item["text"])
+print(by_district)
+print(by_crop)
+A dictionary uses a hash of the key to locate a bucket, then checks equality among candidate keys. Lookup is O(1) average under
+normal hash distribution, though worst-case collisions can be slower. Dictionary counting is O(n) average for n words; repeatedly
+calling list.count for each of d distinct words is O(n·d).
+Python 3.7+ guarantees insertion order for dictionary keys. keys(), values() and items() return dynamic view objects reflecting the
+dictionary; items() yields key-value pairs.
+3. Timing comparison and Counter
+Words
+Dictionary (s)
+list.count (s)
+1000
+0.00008
+0.00015
+Same
+True
+10000
+100000
+from collections import Counter
+0.00080
+0.00862
+0.00111
+0.01226
+all_words = [w for text in calls for w in text.lower().split()]
+print(Counter(w for w in all_words if w not in STOP))
+True
+True
+For 100,000 complaints per day, deploy a dictionary loop or collections.Counter. Both use hash-based counting and are O(n)
+average. Counter is concise and optimised for frequency counting; a custom dictionary is useful when additional filtering or grouping
+rules are required. Normalise case and strip punctuation; empty text should produce an empty dictionary.
+Q4 – Sets: Elective Registration Clash Detection (7 Marks)
+1. Complete TODO 1 using set operators
+ai_elective = {"192311001", "192311004", "192311007", "192311009"}
+iot_elective = {"192311002", "192311004", "192311009", "192311010"}
+all_students = {f"1923110{i:02d}" for i in range(1, 11)}
+both = ai_elective & iot_elective
+exactly_one = ai_elective ^ iot_elective
+neither = all_students - (ai_elective | iot_elective)
+print("clash :", sorted(both))
+print("exactly one:", sorted(exactly_one))
+print("neither :", sorted(neither))
+Expected output:
+clash : ['192311004', '192311009']
+exactly one: ['192311001', '192311002', '192311007', '192311010']
+Page 4
+logeshwaran EM | Register No. 1912260240 | CSA08 Assignment 3
+neither : ['192311003', '192311005', '192311006', '192311008']
+2. Rewrite with set methods
+both2 = ai_elective.intersection(iot_elective)
+exactly_one2 = ai_elective.symmetric_difference(iot_elective)
+neither2 = all_students.difference(ai_elective.union(iot_elective))
+print(both == both2, exactly_one == exactly_one2, neither == neither2)
+Venn interpretation: intersection is the overlap; symmetric difference is the two non-overlapping regions; neither is the part of the
+universal student set outside the union. Sets remove duplicates automatically and do not preserve input order.
+Set membership is O(1) average because of hashing; list membership is O(n) because items are checked sequentially. Lists cannot
+be set members because they are mutable/unhashable; tuples can be members when all their contents are hashable.
+3. Membership and intersection experiment
+Items
+List membership (1000 checks)
+Set membership (1000 checks)
+10,000
+0.06536
+0.00006
+100,000
+1,000,000
+0.64422
+6.84735
+0.00005
+0.00032
+Finding intersections with nested loops takes O(n·m). Sorting both lists then using a two-pointer walk takes O(n log n + m log m)
+including sorting, and O(n+m) for the walk. Set intersection is O(n+m) average in typical analysis and requires memory for the
+resulting set. Convert lists to sets when duplicate elimination and fast membership are useful; conversion loses ordering and
+multiplicity.
+Q5 – List Comprehension: Cleaning Sensor Readings (6 Marks)
+1. Loop, comprehension, map/filter and alarm minutes
+readings = [1.5, 3.0, 9.2, 55.0, -60.0, 7.5, 0.5, 4.0]
+# for loop + append
+valid_loop = []
+for celsius in readings:
+    if -50 <= celsius <= 50:
+        valid_loop.append(celsius)
+# list comprehension
+valid_comp = [c for c in readings if -50 <= c <= 50]
+# map and filter
+valid_map = list(map(lambda c: c,
+                     filter(lambda c: -50 <= c <= 50, readings)))
+fahrenheit = [c * 9/5 + 32 for c in valid_comp]
+alarm_minutes = [minute for minute, c in enumerate(readings, start=1)
+                 if c < 2 or c > 8]
+print(valid_loop)
+print(fahrenheit)
+print(alarm_minutes)
+print(valid_loop == valid_comp == valid_map)
+Valid sensor values are between -50 °C and 50 °C inclusive. Alarm minutes are those with valid readings outside the normal 2–8 °C
+band; invalid sensor errors are not valid temperature measurements and should be reported separately if required.
+2. Comprehension concepts
+General form: [expression for item in iterable if condition]. A comprehension becomes harder to read when it contains multiple nested
+loops, several conditions or complex transformations; a normal loop is clearer then.
+# Dictionary comprehension: minute -> valid Celsius reading
+valid_by_minute = {i: c for i, c in enumerate(readings, 1)
+                   if -50 <= c <= 50}
+# Set comprehension: distinct valid Celsius readings
+valid_unique = {c for c in readings if -50 <= c <= 50}
+# Generator expression: values are produced lazily
+valid_generator = (c for c in readings if -50 <= c <= 50)
+A list comprehension immediately builds and stores a list (O(n) memory). A generator expression yields values on demand and
+usually uses O(1) extra iteration memory, though it can only be consumed once.
+3. Three-version timing results (two-run averages)
+Readings
+Loop (s)
+Comprehension (s)
+map/filter (s)
+10000
+0.00059
+0.00052
+0.00085
+Same
+True
+Page 5
+logeshwaran EM | Register No. 1912260240 | CSA08 Assignment 3
+Readings
+Loop (s)
+Comprehension (s)
+map/filter (s)
+Same
+100000
+1000000
+0.00532
+0.05484
+0.00487
+0.04910
+0.00839
+0.09151
+True
+True
+All three methods should return identical valid readings. Test all-valid input such as [3, 4, 5], and all-invalid input such as [55, -55];
+both should be checked explicitly. Timing is machine-dependent.
+4. Memory and alternative
+import sys
+data = [1, 2, 3, 4, 5]
+list_result = [x for x in data if x % 2 == 0]
+gen_result = (x for x in data if x % 2 == 0)
+print(sys.getsizeof(list_result), sys.getsizeof(gen_result))
+print(sum(x for x in data if x % 2 == 0))
+Both list comprehension and generator expression take O(n) time to examine n readings. The list stores O(n) results; the generator
+stores O(1) iterator state (excluding data retained elsewhere). A list comprehension is not always best: use it when the result is
+needed repeatedly or indexed; use a generator for one-pass processing and lower memory use.
+Q6 – Nested Data: A Railway Timetable (7 Marks)
+1. Nested timetable for five trains
+timetable = {
+ "12601": {"name":"Chennai Mail",
+   "stops":[("Chennai","06:00","06:10"),("Katpadi","08:00","08:02"),("Bengaluru","11:00","11:10")],
+   "days":{"Mon","Tue","Wed","Thu","Fri","Sat","Sun"}},
+ "12602": {"name":"Bengaluru Express",
+   "stops":[("Chennai","07:00","07:10"),("Katpadi","09:00","09:02"),("Bengaluru","12:00","12:10")],
+   "days":{"Mon","Wed","Fri"}},
+ "12603": {"name":"Coastal Express",
+   "stops":[("Chennai","08:00","08:05"),("Villupuram","10:00","10:02"),("Madurai","14:00","14:10")],
+   "days":{"Tue","Thu","Sat"}},
+ "12604": {"name":"Hill Passenger",
+   "stops":[("Bengaluru","05:00","05:05"),("Katpadi","08:30","08:32"),("Chennai","11:30","11:40")],
+   "days":{"Sun"}},
+ "12605": {"name":"Southern Link",
+   "stops":[("Madurai","06:00","06:05"),("Villupuram","10:30","10:32"),("Chennai","13:00","13:10")],
+   "days":{"Mon","Tue","Wed","Thu","Fri"}}
+}
+def trains_at(station, day):
+    found = []
+    for number, info in timetable.items():
+        if day in info["days"]:
+            for stop, arrival, departure in info["stops"]:
+                if stop == station:
+                    found.append((departure, number, info["name"]))
+    return sorted(found, key=lambda row: row[0])
+print(trains_at("Katpadi", "Mon"))
+for number, info in timetable.items():
+    print(number, info["name"], info["days"], info["stops"])
+The departure time of the third station is timetable[train_number]['stops'][2][2].
+2. Why these data structures?
+The outer dictionary gives average O(1) access by train number. Each train's inner dictionary names its fields. A list preserves the
+ordered sequence of stops. Each stop is a tuple because station, arrival and departure form a fixed record. A set stores running days
+and provides average O(1) membership checks.
+Without an index, a query scans every train and each stop: O(S), where S is the total number of stops. Build a station index mapping
+station fi list of (train number, departure, running days); then query work is proportional to the number of trains stopping there, plus
+filtering and sorting.
+3. Station index and timing
+station_index = {}
+for number, info in timetable.items():
+    for station, arrival, departure in info["stops"]:
+        station_index.setdefault(station, []).append(
+            (number, departure, info["days"])
+        )
+def indexed_query(station, day):
+    matches = [(dep, number) for number, dep, days
+               in station_index.get(station, []) if day in days]
+    return sorted(matches, key=lambda x: x[0])
+Page 6
+logeshwaran EM | Register No. 1912260240 | CSA08 Assignment 3
+Trains
+100
+Scan query (s)
+0.000060
+Indexed lookup (s)
+0.000001
+Matches scan/index
+100
+1000
+10000
+0.000476
+0.003524
+0.000004
+0.000031
+1000
+10000
+100
+1000
+10000
+These timings use a generated timetable with eight stops per train and one synthetic query. The index uses extra O(S) memory for
+station entries, but avoids scanning unrelated stops. Unknown stations return an empty list; trains not running on the requested day
+are filtered out.
+4. Flat-list alternative
+A flat list of (train, station, arrival, departure, days) tuples scanned for each query costs O(S) per query. A station index costs O(k) to
+inspect the k trains at that station (plus sorting O(k log k) if ordered output is needed). The nested timetable and index use O(S) total
+storage; the index adds O(S) references/entries. A flat list is simpler but slower for repeated station queries.
+Q7 – Design a Contact-Merging Program from First Principles (10 Marks)
+1. Requirements and identity rule
+Input: contact records from two phones and a SIM, each potentially containing a name, phone number and email. Output: merged
+contacts, with one group per normalised phone number and sets of all known names, phone formats and email addresses.
+Identity rule: records are treated as the same person when they share a normalised phone number. A matching name alone is not
+enough because different people can share a name. Measurable requirements: normalise phone digits consistently; merge duplicate
+numbers; preserve all non-empty emails and names; handle missing fields; produce one output record per normalised phone key.
+2. Normalisation and pseudocode
+def normalise_phone(phone):
+    if not phone:
+        return ""
+    digits = "".join(ch for ch in phone if ch.isdigit())
+    # For this India-focused example, remove leading country code 91
+    # only when the number contains 12 digits.
+    if len(digits) == 12 and digits.startswith("91"):
+        digits = digits[2:]
+    return digits
+# Pseudocode:
+# for each contact:
+#   key = normalise_phone(contact.phone)
+#   if key is not empty:
+#       create dictionary group if key is new
+#       add non-empty name, original phone and email to sets
+# return dictionary values as merged contacts
+3. Implementation and tests
+def merge_contacts(contact_lists):
+    merged = {}
+    for contacts in contact_lists:
+        for contact in contacts:
+            key = normalise_phone(contact.get("phone", ""))
+            if not key:
+                continue
+            group = merged.setdefault(key, {
+                "normalised_phone": key,
+                "names": set(), "phones": set(), "emails": set()
+            })
+            name = contact.get("name", "").strip()
+            phone = contact.get("phone", "").strip()
+            email = contact.get("email", "").strip().lower()
+            if name:
+                group["names"].add(name)
+            if phone:
+                group["phones"].add(phone)
+            if email:
+                group["emails"].add(email)
+    return merged
+phone_a = [
+ {"name":"Dr. Ravi", "phone":"+91 98400 12345", "email":"ravi@example.com"},
+ {"name":"Meena", "phone":"9876543210", "email":"meena@example.com"}
+]
+phone_b = [
+ {"name":"ravi kumar", "phone":"9840012345", "email":"rk@example.com"},
+ {"name":"Meena", "phone":"+91-98765-43210", "email":""},
+ {"name":"Unknown", "phone":"", "email":"no-phone@example.com"}
+]
+result = merge_contacts([phone_a, phone_b])
+Page 7
+logeshwaran EM | Register No. 1912260240 | CSA08 Assignment 3
+for key, value in result.items():
+    print(key, value)
+For the small hand-check: the two Ravi records normalise to 9840012345 and merge into one group with two name spellings and two
+email addresses. The two Meena records normalise to 9876543210 and merge. The record with no phone is skipped by this identity
+rule and should be reviewed separately rather than guessed.
+4. Measurement and complexity
+Contacts
+Dictionary grouping (s)
+Pairwise comparison (s)
+1000
+0.00701
+0.38833 (first 1,000)
+100000
+0.34452
+3.70445 (first 3,000)
+The pairwise benchmark is measured only on the first 3,000 contacts for each row to avoid an excessively long O(n²) run; do not
+compare that timing directly with the full-size dictionary timing. On your own machine, you can benchmark a smaller pairwise sample
+and report the sample size.
+Dictionary grouping is O(n) average time and O(n) space for n contacts. Comparing every pair is O(n²) time and typically O(1) extra
+space if performed in place, or O(n) if storing all pair matches. A dictionary is much faster at scale because it performs hash lookups
+instead of checking every pair.
+Two people with the same name remain separate if their normalised phone numbers differ. Remaining limitation: a person with
+multiple different phone numbers may be split into separate groups, while recycled/shared numbers can incorrectly merge people. A
+more advanced system could use verified email or user confirmation to link groups, but should not merge on name alone.
+Final Submission Checklist
+• Create repository CSA08
+1912260240-Assignment3.
+• Create Q1 through Q7 folders with executed Python files and input/output evidence.
+• Add README.md with name, register number, Python version, libraries and run commands.
+• Commit progressively, at least one commit per task.
+• Replace all illustrative timings with your own computer's measurements and save the raw results.
+• Add the working GitHub URL to the cover page and submission form.
+Page 8
+logeshwaran EM | Register No. 1912260240 | CSA08 Assignment 3
