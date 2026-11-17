@@ -1,0 +1,702 @@
+CSA08 – PYTHON PROGRAMMING
+ASSIGNMENT 4
+Robust Data Processing with Files, Exceptions, Modules and Packages
+Student Detail
+Information
+Name
+Register Number
+Course Outcome
+Total Marks
+Submission Date
+logeshwaran EM
+1912260240
+CO4
+50
+________________________
+GitHub Repository Link
+________________________
+Note: This report provides model answers, sample code, designs and test cases. Run every program on your own
+computer, capture your actual output screenshots, create the required GitHub repository and add its working link before
+submission.
+Page 1
+CSA08 · Assignment 4 | logeshwaran EM | 1912260240
+Task 1 – File-Processing Design Review (6 Marks)
+1.1 Diagnose the script
+Deficiency
+Possible consequence in the hostel office
+Hard-coded Windows path
+File is not closed
+The program fails on another computer or when the file is moved; the path must be edited manually.
+The file handle remains open until cleanup; repeated runs can waste operating-system resources and may delay writes.
+Reads entire file with read()
+Bare except with pass
+Uses int() for amount
+Repeated string concatenation
+Trailing blank line
+No rejected-line record
+No field-count validation
+1.2 Repaired design
+Memory usage grows with file size. A large monthly file can consume unnecessary RAM.
+All errors are silently ignored, including programming mistakes. The total may be incomplete without warning.
+A valid amount such as 1250.50 raises ValueError, so paise values are skipped.
+Repeatedly rebuilding report strings can be inefficient for large reports; a list plus join is clearer.
+The final empty line has too few fields and is silently skipped, hiding malformed input.
+Office staff cannot identify or correct records that were excluded from the total.
+Malformed rows may cause IndexError or incorrect data to be processed.
+from decimal import Decimal, InvalidOperation
+def make_mess_report(filename):
+    total = Decimal("0.00")
+    report_rows = []
+    rejected = []
+    with open(filename, "r", encoding="utf-8") as file:
+        for line_number, raw_line in enumerate(file, start=1):
+            line = raw_line.strip()
+            if not line:
+                continue
+            parts = [part.strip() for part in line.split(",")]
+            if len(parts) != 3:
+                rejected.append((line_number, raw_line.rstrip("\\n"),
+                                 "expected 3 fields"))
+                continue
+            reg_no, name, amount_text = parts
+            try:
+                amount = Decimal(amount_text)
+            except InvalidOperation:
+                rejected.append((line_number, raw_line.rstrip("\\n"),
+                                 "amount is not numeric"))
+                continue
+            if not amount.is_finite():
+                rejected.append((line_number, raw_line.rstrip("\\n"),
+                                 "amount is not finite"))
+                continue
+            total += amount
+            report_rows.append(f"{name} {amount:.2f}")
+    return "\\n".join(report_rows), total, rejected
+if __name__ == "__main__":
+    report, total, rejected = make_mess_report("mess_oct.txt")
+    print(report)
+    print("Total", f"{total:.2f}")
+    print("Rejected lines:", rejected)
+The function receives the file name as a parameter, so it is reusable with different months or folders. Decimal is used for
+money to avoid ordinary binary floating-point rounding issues.
+1.3 Design defence (under 100 words)
+The repaired version uses a with statement, so the file is closed even if processing fails. It reads one line at a time,
+keeping memory use nearly constant as the file grows. It validates the number of fields and parses amounts with
+Decimal, so paise values are accepted. Specific validation failures are recorded with line numbers instead of being
+silently discarded. A blank final line is safely ignored. Therefore, a 50,000-line file can be processed reliably without
+holding the entire file or report in memory.
+Alternative concept and complexity
+Page 2
+CSA08 · Assignment 4 | logeshwaran EM | 1912260240
+Using read() or readlines() still takes O(n) time to read and process n characters/lines. It also stores the entire file in
+memory, requiring O(file size) additional space. Iterating directly over the file is O(n) time but needs approximately O(one
+line) input-buffer space, excluding the output and rejected-record collections. For 50,000 lines, line-by-line processing is
+safer when the file is large.
+Page 3
+CSA08 · Assignment 4 | logeshwaran EM | 1912260240
+Task 2 – Biometric Attendance Files (8 Marks)
+2.1 Data model
+• Input: one UTF-8 text/CSV file per day. Each non-empty row has exactly three comma-separated fields: register
+number, ISO date (YYYY-MM-DD), and status P or A.
+• Use a dictionary keyed by register number. Each value stores present count, absent count and optionally the dates
+processed.
+• Output 1: attendance_summary.csv with register_number,present,absent,total_days,percentage.
+• Output 2: below_75.csv with register_number,percentage for students whose percentage is below 75%.
+• Damaged rows are written to attendance_errors.csv with file name, line number, original text and reason.
+2.2 File operations
+Operation
+Choice and reason
+Input files
+Reports
+Open in r mode with encoding='utf-8'; use iteration to process each line without loading the entire file.
+Open in w mode with newline='' for CSV output; write headers and fresh monthly results.
+Error log
+Methods
+File discovery
+Open in a mode that preserves earlier errors (w once at start for a new monthly run, then write all errors; alternatively a for append-only run).
+Use iteration for daily files and write() or csv.writer.writerow() for outputs. read() is unnecessary for large files.
+Use pathlib.Path(folder).glob('*.csv') and sort paths for predictable processing.
+2.3 Pseudocode – monthly processing
+ALGORITHM MonthlyAttendance(folder, month_start, month_end)
+    CREATE dictionary counts
+    CREATE empty list damaged_records
+    files ‹ SORT all daily CSV files in folder
+    FOR each file_path IN files
+        TRY
+            OPEN file_path in read mode using UTF-8
+            FOR each line with line_number starting at 1
+                IF line is blank THEN CONTINUE
+                fields 
+‹ split line by comma and trim spaces
+                IF number of fields is not 3
+                    ADD (file name, line number, line, "field count")
+                        to damaged_records
+                    CONTINUE
+                reg_no, date_text, status ‹ fields
+                IF date is outside requested month OR invalid
+                    ADD error record and CONTINUE
+                IF status is not P or A
+                    ADD error record and CONTINUE
+                IF reg_no not in counts
+                    counts[reg_no] ‹ [0, 0]
+                IF status = P THEN counts[reg_no][0] += 1
+                ELSE counts[reg_no][1] += 1
+            END FOR
+        CATCH FileNotFoundError OR PermissionError OR UnicodeDecodeError
+            ADD file-level error to damaged_records
+        FINALLY
+            ENSURE opened file is closed
+        END TRY
+    END FOR
+    WRITE attendance_summary.csv
+    WRITE below_75.csv for percentage < 75
+    WRITE attendance_errors.csv from damaged_records
+END ALGORITHM
+2.4 Trace
+Line
+Input
+1
+2
+192311001,2026-10-01,P
+192311002,2026-10-01,A
+Action/result
+Valid; counts[192311001] becomes [1,0].
+Valid; counts[192311002] becomes [0,1].
+3
+4
+192311003,2026-10-01
+192311001,2026-10-02,P
+Only two fields; record as damaged and continue.
+Valid; first student's counts become [2,0].
+Page 4
+CSA08 · Assignment 4 | logeshwaran EM | 1912260240
+For the first student in this trace, percentage = 2 / (2 + 0) × 100 = 100%. In a real monthly report, the denominator must
+follow the department's rule for expected/recorded attendance days.
+Alternative concept and complexity
+Re-reading all f files for each of s students scans approximately s × f × l lines, giving O(s·f·l) time. A single pass through
+all files with a dictionary takes O(f·l) average time for dictionary updates. The dictionary approach uses O(s) space for
+student counts, plus O(e) for e error records. Re-reading can use less accumulated memory, but is much slower.
+Page 5
+CSA08 · Assignment 4 | logeshwaran EM | 1912260240
+Task 3 – Exceptions in the Attendance Processor (9 Marks)
+3.1 Failure table
+Failure
+Likely exception / handling
+Folder or file does not exist
+Permission denied
+FileNotFoundError; report missing input and continue with other files.
+PermissionError; log file-level failure.
+Wrong text encoding / invalid byte sequence
+UnicodeDecodeError; log encoding problem.
+Missing or extra fields
+Invalid status such as L
+Invalid date or numeric conversion
+Custom InvalidRecord; reject only that row.
+Custom InvalidRecord; reject only that row.
+ValueError; convert to InvalidRecord or record a clear validation error.
+Indexing a missing field
+Empty file
+Disk full / output cannot be written
+File path points to a directory
+3.2 Custom exception
+IndexError; prevent by checking field count before indexing.
+No exception normally; produce zero counts and an empty-data note.
+OSError; report output failure and do not claim success.
+IsADirectoryError (subclass of OSError); report invalid input path.
+InvalidRecord represents a syntactically readable row that violates the attendance data rules. parse_line() raises it when
+the row does not contain exactly three fields or the status is not P/A. summarise() catches it around each individual row,
+records the line number and continues. File-level exceptions are handled outside the row loop.
+class InvalidRecord(Exception):
+    """An attendance row does not follow the required format."""
+3.3 Complete try statement and completed code
+import os
+import tempfile
+class InvalidRecord(Exception):
+    """Raised when a line is not in the expected format."""
+def parse_line(line):
+    parts = line.strip().split(",")
+    if len(parts) != 3:
+        raise InvalidRecord(
+            f"expected 3 fields, found {len(parts)}")
+    reg_no, date_text, status = (part.strip() for part in parts)
+    if status not in ("P", "A"):
+        raise InvalidRecord(f"invalid status '{status}'")
+    if not reg_no or not date_text:
+        raise InvalidRecord("register number/date is empty")
+    return reg_no, date_text, status
+def summarise(path):
+    present, absent, errors = 0, 0, []
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            for line_number, line in enumerate(file, start=1):
+                if not line.strip():
+                    continue
+                try:
+                    _reg_no, _date, status = parse_line(line)
+                except InvalidRecord as exc:
+                    errors.append((line_number, str(exc)))
+                    continue
+                else:
+                    if status == "P":
+                        present += 1
+                    else:
+                        absent += 1
+    except (FileNotFoundError, PermissionError, UnicodeDecodeError) as exc:
+        raise RuntimeError(f"Cannot process {path}") from exc
+    finally:
+        # The with statement closes an opened file automatically.
+        pass
+    return present, absent, errors
+data = ("192311001,2026-10-08,P\\n"
+        "192311002,2026-10-08,A\\n"
+        "192311003,2026-10-08\\n"
+        "192311004,2026-10-08,L\\n")
+Page 6
+CSA08 · Assignment 4 | logeshwaran EM | 1912260240
+with tempfile.NamedTemporaryFile(
+        "w", suffix=".csv", delete=False, encoding="utf-8") as tmp:
+    tmp.write(data)
+    temp_path = tmp.name
+try:
+    print(summarise(temp_path))
+finally:
+    os.remove(temp_path)
+Expected output:
+(1, 1, [(3, 'expected 3 fields, found 2'),
+         (4, "invalid status 'L'")])
+If a nonexistent path is passed, open() raises FileNotFoundError. The except clause wraps it in RuntimeError using raise
+... from exc, preserving the original exception as the cause. The with statement closes the file automatically. The finally
+block is included to demonstrate the complete try structure; it is safe for cleanup that is not already handled by with.
+3.4 Misuse experiment
+Replacing the specific handlers with except Exception: pass and introducing a misspelled variable (for example, writing
+presnt += 1 instead of present += 1) causes a NameError. Because NameError is an Exception subclass, the bare
+handler catches it and silently ignores it. The program may finish with an incorrect count and no diagnostic. This is
+dangerous because programming defects become indistinguishable from bad input.
+Alternative concept and complexity
+With exception-based validation, each valid line follows the normal parse path and exceptions are raised only for invalid
+rows. When bad rows are rare, this is usually efficient and keeps validation code focused. With if-statements, each line is
+checked explicitly before fields are used; this avoids exception overhead and is often preferable when malformed rows
+are common. Both approaches are O(1) work per line for a fixed number of fields, so total processing is O(n) for n lines.
+Their practical constant costs differ; benchmark with representative data to compare.
+Page 7
+CSA08 · Assignment 4 | logeshwaran EM | 1912260240
+Task 4 – File and Exception Forensics (7 Marks)
+4.1 Locate the defects
+• Opening returns.log in w mode truncates the existing log every time save_returns() runs. Therefore, only the latest day's
+returns remain.
+• write(b) adds no line separator. Multiple book names are concatenated together, making the log difficult to read.
+• If write() raises an exception before close(), the explicit close() line is skipped. The file can remain open until garbage
+collection/process exit.
+• process() reads the entire daily file and does not close it explicitly. It catches only FileNotFoundError, so other I/O
+failures are unhandled.
+• The exception handler prints 'missing' but does not save the error in a persistent error log.
+4.2 Test demonstrating the defects
+# Run this demonstration in a temporary working directory.
+def save_returns_bad(books):
+    log = open("returns_bad.log", "w", encoding="utf-8")
+    for book in books:
+        log.write(book)       # no newline
+    log.close()
+def process_bad(day_file):
+    try:
+        books = open(day_file, encoding="utf-8").read().split("\\n")
+        save_returns_bad(books)
+    except FileNotFoundError:
+        print("missing")
+# Three sequential days overwrite the same file each time.
+for day, books in enumerate(
+        [["Book A", "Book B"], ["Book C"], ["Book D", "Book E"]], 1):
+    save_returns_bad(books)
+    print("After day", day, ":", open(
+        "returns_bad.log", encoding="utf-8").read())
+# Final file contains only Book DBook E (joined together).
+Expected observation: after each call the log is replaced. After day 3, only the third day's names remain and they have no
+newline separator. To test a write failure, use a controlled test double whose write() raises OSError; in the original
+function, close() is then skipped.
+4.3 Repaired program
+from pathlib import Path
+from datetime import datetime
+def save_returns(books, log_path="returns.log"):
+    with open(log_path, "a", encoding="utf-8") as log:
+        for book in books:
+            if book.strip():
+                log.write(book.rstrip() + "\\n")
+def process(day_file, log_path="returns.log",
+            error_path="errors.log"):
+    try:
+        with open(day_file, "r", encoding="utf-8") as source:
+            books = source.read().splitlines()
+        save_returns(books, log_path)
+    except (FileNotFoundError, PermissionError,
+            UnicodeDecodeError, OSError) as exc:
+        with open(error_path, "a", encoding="utf-8") as errors:
+            errors.write(
+                f"{datetime.now().isoformat()} | "
+                f"{day_file} | {type(exc).__name__}: {exc}\\n")
+4.4 Prevention rules
+• Use append mode ('a') for cumulative logs; use write mode ('w') only when intentionally creating a fresh report.
+• Use with statements for every file and write explicit newline characters between records. Log failures with enough
+context to diagnose them.
+Alternative concept and complexity
+Page 8
+CSA08 · Assignment 4 | logeshwaran EM | 1912260240
+Manual management can use try/finally: open the file, perform writes in try, and close it in finally. This gives the same
+O(n) time and O(1) extra streaming space as with. With guarantees cleanup automatically. If a single file is open and an
+error occurs, a correctly written try/finally version closes it; without finally, one file may remain open. The original code
+can leave the log open when write fails and can also leave the input file open because it is not managed with a context
+manager.
+Page 9
+CSA08 · Assignment 4 | logeshwaran EM | 1912260240
+Task 5 – The Same Utility Organised Four Ways (7 Marks)
+5.1 Four organisations
+All four designs implement the same three responsibilities: read/validate attendance rows, calculate statistics and write
+reports. The examples below show the file layout and the essential code pattern.
+(a) One script
+# attendance_all.py
+def read_records(path):
+    records = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            parts = line.strip().split(",")
+            if len(parts) == 3 and parts[2] in ("P", "A"):
+                records.append(tuple(parts))
+    return records
+def percentage(present, absent):
+    total = present + absent
+    return 0 if total == 0 else present * 100 / total
+def write_report(rows, path):
+    with open(path, "w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(",".join(map(str, row)) + "\\n")
+if __name__ == "__main__":
+    records = read_records("day.csv")
+    write_report(records, "report.csv")
+(b) One module imported by a main script
+# attendance_utils.py
+def read_records(path):
+    with open(path, encoding="utf-8") as f:
+        return [line.strip().split(",") for line in f if line.strip()]
+def percentage(present, absent):
+    total = present + absent
+    return 0 if total == 0 else present * 100 / total
+def write_report(rows, path):
+    with open(path, "w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(",".join(map(str, row)) + "\\n")
+# main.py
+import attendance_utils as au
+if __name__ == "__main__":
+    rows = au.read_records("day.csv")
+    au.write_report(rows, "report.csv")
+(c) Three modules in one folder
+project/
+    reader.py       # read_records(path)
+    stats.py        # percentage(present, absent)
+    report.py       # write_report(rows, path)
+    main.py
+# main.py
+from reader import read_records
+from report import write_report
+if __name__ == "__main__":
+    rows = read_records("day.csv")
+    write_report(rows, "report.csv")
+(d) Package attendance/
+project/
+    attendance/
+        __init__.py
+        reader.py
+        stats.py
+        report.py
+    main.py
+# attendance/reader.py
+def read_records(path):
+    with open(path, encoding="utf-8") as f:
+        return [line.strip().split(",") for line in f if line.strip()]
+Page 10
+CSA08 · Assignment 4 | logeshwaran EM | 1912260240
+# attendance/stats.py
+def percentage(present, absent):
+    total = present + absent
+    return 0 if total == 0 else present * 100 / total
+# attendance/report.py
+def write_report(rows, path):
+    with open(path, "w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(",".join(map(str, row)) + "\\n")
+# attendance/__init__.py
+from .reader import read_records
+from .stats import percentage
+from .report import write_report
+# main.py
+from attendance import read_records, write_report
+if __name__ == "__main__":
+    rows = read_records("day.csv")
+    write_report(rows, "report.csv")
+5.2 Requirement change: three consecutive absences
+Add a function consecutive_absences(records, days=3) that groups statuses by register number and date, sorts each
+student's dates, and checks whether any three consecutive calendar dates have status A. The number of files to change
+depends on the organisation:
+Organisation
+Likely files changed
+One script
+One utility module + main
+1 file
+1 utility module (main changes only if the report call/interface changes)
+Three modules
+Package
+2 files: stats.py for calculation and report.py for output
+2 files: attendance/stats.py and attendance/report.py
+from datetime import date, timedelta
+def has_three_consecutive_absences(status_by_date):
+    absent_days = {date.fromisoformat(d) for d, s in status_by_date
+                   if s == "A"}
+    return any(all(day + timedelta(days=i) in absent_days
+                   for i in range(3)) for day in absent_days)
+5.3 Comparison
+Organisation
+Readability / reuse / testing / conflicts
+Single script
+Easy for a tiny program, but becomes long. Functions can be tested, but responsibilities are mixed. More chance of naming conflicts.
+One module
+Three modules
+Package
+Better reuse than a script; easy to import and test. A large module can still become crowded.
+Clear separation by responsibility and easier unit testing. Module names must be managed carefully.
+Best structure for a growing application; clear namespace, scalable reuse and tests. Slightly more setup and import structure.
+• import attendance.stats imports the submodule; call its function as attendance.stats.percentage(...).
+• from attendance import stats binds the stats submodule name directly; call stats.percentage(...).
+• from attendance.stats import percentage imports the function name directly; call percentage(...). This is concise but
+can make name collisions more likely.
+Alternative concept and complexity
+Keeping everything in one script avoids package setup and has no package import overhead, but locating and changing
+a function becomes harder as the file grows. A package loads imported modules once per process and caches them in
+sys.modules; subsequent imports normally reuse the cached module. Import work is generally a one-time startup cost.
+Package memory includes the loaded module objects and their globals, usually modest compared with the benefits of
+separation. Runtime algorithm complexity is unchanged by the organisation.
+Page 11
+CSA08 · Assignment 4 | logeshwaran EM | 1912260240
+Task 6 – College Fest Registration Desk (13 Marks)
+Stage 1: Inputs, outputs and testable rules
+• Input: five department text files. Each non-empty line has register number, name, department, e-mail and
+semicolon-separated events.
+• Output: clean_master.csv, one participants_.csv per event, summary.txt and errors.log.
+• Each valid register number is accepted at most once across all department files; later duplicates are logged and
+skipped.
+• Each row must contain exactly five fields; required fields cannot be empty.
+• E-mail validation checks for one @, non-empty local/domain portions and a dot in the domain using string methods.
+• Invalid rows are logged with source file, line number, original line and reason; processing continues.
+• A missing department file is logged and the other files are still processed.
+• Every event participant file contains each accepted student once for that event.
+Stage 2: Processing flow
+Five department files
+        |
+        v
+List files / attempt each file
+        |
+        v
+Open file (log missing or unreadable file)
+        |
+        v
+Read one line at a time
+        |
+        v
+Split fields and validate count / required values / e-mail
+        | invalid
+        +---------------------> Write error log; continue
+        |
+        v
+Check register number in seen_registers set
+        | duplicate
+        +---------------------> Write duplicate log; continue
+        |
+        v
+Add register number to set and row to clean master
+        |
+        v
+Add row to each selected event list
+        |
+        v
+Write master + event files + summary + error log
+Stage 3: Critical decisions
+• Duplicate detection: maintain a set of register numbers. Membership lookup is O(1) average, so processing remains
+efficient.
+• E-mail validation: trim whitespace; require exactly one @; split into local and domain; require both non-empty; require
+a dot in domain and no leading/trailing dot. This is basic validation, not proof that the address exists.
+• Exception boundaries: handle FileNotFoundError, PermissionError, UnicodeDecodeError and OSError around each
+file. Handle InvalidRecord around each row so one damaged record does not stop the file.
+• Output safety: use with statements and UTF-8; write outputs after processing, with CSV writer to quote commas safely.
+Stage 4: Package structure
+fest_registration/
+    __init__.py
+    reader.py       # read_department_file(path)
+    validation.py   # parse_record(line), valid_email(email)
+    processing.py   # process_files(paths)
+    reports.py      # write_master(), write_event_files(),
+                    # write_summary(), write_errors()
+main.py
+data/
+    department1.txt ... department5.txt
+Page 12
+CSA08 · Assignment 4 | logeshwaran EM | 1912260240
+output/
+Pseudocode
+ALGORITHM ProcessFestFiles(paths)
+    seen_registers ‹ empty SET
+    master ‹ empty LIST
+    event_map ‹ empty DICTIONARY
+    errors ‹ empty LIST
+    FOR each path IN paths
+        TRY
+            OPEN path as UTF-8 text using a context manager
+            FOR each line and line_number
+                IF line is blank THEN CONTINUE
+                TRY
+                    fields 
+‹ split line by comma
+                    IF fields count is not 5 THEN RAISE InvalidRecord
+                    TRIM every field
+                    VALIDATE required fields and e-mail
+                    IF register number is in seen_registers
+                        RAISE InvalidRecord("duplicate registration")
+                    ADD register number to seen_registers
+                    ADD student row to master
+                    FOR each event separated by semicolon
+                        ADD student to event_map[event]
+                CATCH InvalidRecord
+                    ADD file, line number, original line and reason to errors
+                    CONTINUE
+        CATCH FileNotFoundError / PermissionError /
+              UnicodeDecodeError / OSError
+            ADD file-level error to errors
+            CONTINUE
+    WRITE clean_master.csv
+    FOR each event in event_map
+        WRITE participants_<event>.csv
+    WRITE summary.txt
+    WRITE errors.log
+END ALGORITHM
+Stage 5: Working implementation
+# main.py – self-contained demonstration of the package logic
+from pathlib import Path
+import csv
+class InvalidRecord(Exception):
+    pass
+def valid_email(email):
+    if email.count("@") != 1:
+        return False
+    local, domain = email.split("@")
+    return (bool(local) and bool(domain) and "." in domain
+            and not domain.startswith(".")
+            and not domain.endswith(".")
+            and " " not in email)
+def parse_record(line):
+    fields = [x.strip() for x in line.strip().split(",")]
+    if len(fields) != 5:
+        raise InvalidRecord("expected 5 comma-separated fields")
+    reg, name, dept, email, event_text = fields
+    if not all((reg, name, dept, email, event_text)):
+        raise InvalidRecord("one or more required fields are empty")
+    if not valid_email(email):
+        raise InvalidRecord(f"invalid email '{email}'")
+    events = [e.strip() for e in event_text.split(";") if e.strip()]
+    if not events:
+        raise InvalidRecord("no valid events selected")
+    return {"reg": reg, "name": name, "dept": dept,
+            "email": email, "events": events}
+def process_files(paths, output_dir="output"):
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    seen, master, event_map, errors = set(), [], {}, []
+    for path in paths:
+        try:
+            with open(path, "r", encoding="utf-8") as source:
+                for line_no, line in enumerate(source, start=1):
+                    if not line.strip():
+                        continue
+                    try:
+                        row = parse_record(line)
+                        if row["reg"] in seen:
+                            raise InvalidRecord(
+Page 13
+CSA08 · Assignment 4 | logeshwaran EM | 1912260240
+                                f"duplicate register number {row['reg']}")
+                        seen.add(row["reg"])
+                        master.append(row)
+                        for event in row["events"]:
+                            event_map.setdefault(event, []).append(row)
+                    except InvalidRecord as exc:
+                        errors.append((str(path), line_no,
+                                       line.rstrip(), str(exc)))
+        except (FileNotFoundError, PermissionError,
+                UnicodeDecodeError, OSError) as exc:
+            errors.append((str(path), 0, "", 
+                           f"{type(exc).__name__}: {exc}"))
+    def write_rows(path, rows):
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["RegisterNo", "Name", "Department", "Email"])
+            for r in rows:
+                writer.writerow([r["reg"], r["name"],
+                                 r["dept"], r["email"]])
+    write_rows(out / "clean_master.csv", master)
+    for event, rows in event_map.items():
+        safe_name = "".join(c if c.isalnum() else "_"
+                            for c in event)
+        write_rows(out / f"participants_{safe_name}.csv", rows)
+    with open(out / "summary.txt", "w", encoding="utf-8") as f:
+        f.write(f"Accepted registrations: {len(master)}\\n")
+        f.write(f"Events: {len(event_map)}\\n")
+        for event, rows in sorted(event_map.items()):
+            f.write(f"{event}: {len(rows)} participants\\n")
+    with open(out / "errors.log", "w", encoding="utf-8") as f:
+        for item in errors:
+            f.write(" | ".join(map(str, item)) + "\\n")
+    return len(master), len(errors), event_map
+if __name__ == "__main__":
+    # Include one missing file deliberately to test file-level recovery.
+    sample_files = ["dept1.txt", "dept2.txt", "dept3.txt",
+                    "dept4.txt", "dept5_missing.txt"]
+    print(process_files(sample_files))
+Important: the example parser uses comma-separated fields as specified in the assignment description. If a student's name or another
+field may contain commas, use a formally quoted CSV input format and csv.reader instead of split(',').
+Demonstration test data
+1912260240
+# dept1.txt
+,Ravi,CSE,ravi@example.com,Music;Quiz
+1965260139,Meena,ECE,meena@example.com,Dance
+1912260240
+# dept2.txt
+,Ravi,CSE,ravi@example.com,Music
+1965260140,Arun,IT,not-an-email,Quiz
+broken,line,with,too,few,fields
+# dept3.txt / dept4.txt
+1965260141,Kavi,EEE,kavi@example.com,Drama
+# dept5_missing.txt does not exist
+Expected checks: the first Ravi row is accepted; the second Ravi row is logged as a duplicate; the invalid e-mail row is
+logged; the damaged six-field row is logged; and the missing fifth file is logged without stopping the other inputs. Exact
+output counts depend on the actual contents of all five test files.
+Alternative concept and complexity
+If duplicates are detected by searching a list of all previously accepted register numbers, the i-th registration may require
+scanning up to i-1 earlier values. Across n registrations, total work is O(n²) in the worst case. A set provides O(1)
+average membership/insertion, making the full pass O(n) average, excluding event/output work. Both approaches store
+O(n) register identifiers; the set usually has higher per-item overhead but much faster lookup.
+Page 14
+CSA08 · Assignment 4 | logeshwaran EM | 1912260240
+Final submission checklist
+• Create repository named CSA08
+1912260240-Assignment4.
+• Create folders Task01 through Task06 (or Q1 through Q6), and place the relevant .py files and input files in each.
+• Run every program, including the completed Task 3 program and Task 6 test cases.
+• Capture genuine screenshots of program execution and generated output files; do not use expected output as if it were
+an actual run.
+• Add README.md with name, register number, Python version, libraries/versions, commands to run each task and short
+results. Include requirements.txt if applicable.
+• Make at least one meaningful Git commit per task.
+• Paste the working GitHub repository link on the cover page and in the assignment submission field.
+• Replace the blank submission date and repository link before submitting.
+Student:     
+logeshwaran EM
+Register No: 
+1912260240
+Page 15
+CSA08 · Assignment 4 | logeshwaran EM | 1912260240
