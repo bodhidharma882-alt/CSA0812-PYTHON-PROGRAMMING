@@ -1,0 +1,504 @@
+SIMATS ONLINE LAB • CSA08
+ASSIGNMENT 2
+Control Flow, Strings and Functions
+Student Name
+Register Number
+Course / Assignment
+Total Marks
+Questions Covered
+logeshwaran EM
+1912260240
+CSA08 – Assignment 2
+50
+Q1 to Q7
+Submission note: This is a worked answer and reference report. Run every program on your own computer, save your actual
+screenshots and measurements, and add your GitHub repository link before submission.
+Python version used for the sample runs in this report: Python 3.x. Timing values are environment-dependent and should be replaced with
+your own measurements.
+Page 1
+logeshwaran EM | Register No. 1912260240 | CSA08 Assignment 2
+Q1 – Decisions with Many Boundaries (6 Marks)
+1. Predictions before execution
+Rule: units £ 100 fi full subsidy; 101–200 fi partial subsidy only with a ration card; above 200 fi no subsidy unless a
+household member is older than 80.
+Household
+Units
+Ration card
+Member >80
+Prediction
+H1
+H2
+H3
+100
+101
+101
+No
+Yes
+No
+No
+No
+No
+Full subsidy
+Partial subsidy
+No subsidy
+H4
+H5
+H6
+H7
+H8
+200
+200
+201
+250
+80
+Yes
+No
+No
+No
+Yes
+No
+No
+No
+Yes
+No
+Partial subsidy
+No subsidy
+No subsidy
+Special subsidy
+Full subsidy
+2. Why separate if statements can produce multiple results
+Each independent if statement is checked separately. If conditions overlap, more than one block can run and print multiple
+decisions. An if–elif–else chain stops after the first matching branch, so it produces exactly one decision. Conditions
+should be ordered from the most specific/highest boundary logic to the remaining cases.
+3. Two implementations and comparison
+def separate_if(units, ration_card, age_over_80):
+    results = []
+    if units <= 100:
+        results.append("Full subsidy")
+    if 101 <= units <= 200 and ration_card:
+        results.append("Partial subsidy")
+    if units > 200 and not age_over_80:
+        results.append("No subsidy")
+    if units > 200 and age_over_80:
+        results.append("Special subsidy")
+    if 101 <= units <= 200 and not ration_card:
+        results.append("No subsidy")
+    return results
+def chained(units, ration_card, age_over_80):
+    if units <= 100:
+        return "Full subsidy"
+    elif 101 <= units <= 200:
+        if ration_card:
+            return "Partial subsidy"
+        else:
+            return "No subsidy"
+    else:
+        if age_over_80:
+            return "Special subsidy"
+        else:
+            return "No subsidy"
+tests = [
+    (100, False, False), (101, True, False),
+    (101, False, False), (200, True, False),
+    (200, False, False), (201, False, False),
+    (250, False, True), (80, True, False)
+]
+for case in tests:
+    print(case, "->", separate_if(*case), "|", chained(*case))
+The chained version is preferable because each input maps to one clear outcome. The separate-if version is useful to
+demonstrate the bug risk, but its output is a list because multiple branches can run.
+4. Design decision and alternative
+Page 2
+logeshwaran EM | Register No. 1912260240 | CSA08 Assignment 2
+Combined Boolean conditions are suitable for simple checks such as 101 £ units £ 200 and ration_card. A small nested if
+inside that slab makes the ration-card exception clear. I would use if–elif–else with one nested if: it separates the unit
+ranges first, then checks the special condition.
+A match–case alternative can match True guards or ranges, but Python match does not directly provide numeric range
+patterns in the same concise way as chained comparisons. A lookup list such as [(100, 'Full subsidy'), (200, 'Check ration
+card'), (float('inf'), 'Check age')], scanned in order, takes O(k) time per decision and O(k) space for k slabs. The if–elif chain
+takes O(k) worst-case time and O(1) auxiliary space; with a fixed small number of slabs it is effectively constant time.
+Q2 – Loops that Count Attempts (4 Marks)
+1. while-loop and for-loop designs
+def verify_while(correct_otp):
+    attempts = 0
+    while attempts < 3:
+        entered = input("Enter OTP: ").strip()
+        if entered == "":
+            print("Blank entry: try again; not counted")
+            continue
+        attempts += 1
+        if entered == correct_otp:
+            print("Verified")
+            break
+        print("Wrong OTP")
+    else:
+        print("Account locked for 30 minutes")
+def verify_for(correct_otp):
+    for attempt in range(3):
+        entered = input("Enter OTP: ").strip()
+        if entered == "":
+            print("Blank entry: try again; not counted")
+            # A for-loop needs a separate counted-attempt variable
+            # to avoid using a blank entry as one of the three attempts.
+            continue
+        if entered == correct_otp:
+            print("Verified")
+            break
+        print("Wrong OTP")
+    else:
+        print("Account locked for 30 minutes")
+Important correction for the for version: range(3) counts loop iterations, so a blank input would consume an iteration. To
+satisfy the requirement that blank input does not count, use a while loop as the clearest solution, or use a counted-attempt
+variable with a while loop around each for iteration. The following robust for-based design uses a bounded for loop plus a
+counter and retries blank entries without consuming a counted attempt:
+def verify_for_corrected(correct_otp):
+    attempts = 0
+    while attempts < 3:
+        for _ in range(1):  # one input opportunity; blank does not count
+            entered = input("Enter OTP: ").strip()
+            if not entered:
+                print("Blank entry: not counted")
+                continue
+            attempts += 1
+            if entered == correct_otp:
+                print("Verified")
+                return
+            print("Wrong OTP")
+    print("Account locked for 30 minutes")
+2. break, continue, pass and loop–else
+break exits the loop after a correct OTP. continue skips the remaining statements for a blank entry. pass is a placeholder
+that performs no action; it may be used in a branch while developing, but it is not needed for the final verification logic. A
+loop's else executes only when the loop finishes normally, without break.
+3. Questions and changed condition
+A while loop is more natural because the number of input events is not fixed: blank entries do not count, and the loop
+continues until three valid attempts have been made or the OTP is correct. Updating the counter before checking for a
+blank entry is a common bug: blank entries incorrectly consume attempts. Updating it in the wrong place can also permit
+more than three wrong attempts.
+Page 3
+logeshwaran EM | Register No. 1912260240 | CSA08 Assignment 2
+For two extra attempts after a correct security answer, set the maximum to 5 only after the security answer is verified;
+otherwise keep it at 3. The loop time is O(a) for a attempts and loop auxiliary space is O(1). A recursive design calls the
+function for the next attempt; it also takes O(a) time but uses O(a) call-stack space, so a loop is safer for a larger attempt
+count.
+Q3 – Vehicle Registration Number Validator (6 Marks)
+1. Normalisation, validation and receipt formatting
+def normalise(text):
+    return text.strip().replace(" ", "").replace("-", "").upper()
+def is_valid(reg):
+    if len(reg) not in (9, 10):
+        return False
+    if not reg[0:2].isalpha():
+        return False
+    if not reg[2:4].isdigit():
+        return False
+    series_len = len(reg) - 8
+    if series_len not in (1, 2):
+        return False
+    if not reg[4:4 + series_len].isalpha():
+        return False
+    if not reg[4 + series_len:].isdigit():
+        return False
+    return True
+def format_receipt(reg):
+    if not is_valid(reg):
+        return "INVALID"
+    series_len = len(reg) - 8
+    return (reg[:2] + " " + reg[2:4] + " " +
+            reg[4:4 + series_len] + " " + reg[-4:])
+samples = [
+    "tn 09 ab 1234", "KA-01-M-0007", "TN9AB1234",
+    "TN 22 1234 AB", "MH 12 XY 9876", "DL-8-C-1234"
+]
+for raw in samples:
+    reg = normalise(raw)
+    print(raw, "->", reg, "valid" if is_valid(reg) else "INVALID")
+2. Predictions for six inputs
+TN 09 AB 1234 fi valid; KA-01-M-0007 fi valid; TN9AB1234 fi invalid (district has one digit); TN 22 1234 AB fi invalid
+(series and final digits are in the wrong order); MH 12 XY 9876 fi valid; DL-8-C-1234 fi invalid (district has one digit).
+3. String concepts
+Strings are immutable: once a string object is created, its characters cannot be changed in place. Operations such as
+replace() and upper() return new strings. Therefore text.upper() does not modify text unless the result is assigned, for
+example text = text.upper().
+For the 9-character form, s[-4:] returns the final four digits and s[4:-4] returns the one-letter series. For the 10-character
+form, s[-4:] still returns the final four digits and s[4:-4] returns the two-letter series.
+4. Complete-the-code answer and alternative
+The normalise() and is_valid() functions above complete TODO 1 and TODO 2 using only string operations and slicing. A
+regular-expression alternative is:
+import re
+def is_valid_regex(reg):
+    return re.fullmatch(r"[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}", reg) is not None
+Both approaches take O(L) time for a string of length L. Slicing and string methods make each field check explicit and are
+easy for beginners to trace. A regular expression is compact and makes the complete format visible in one pattern, but can
+be harder to maintain for someone unfamiliar with regex syntax.
+Q4 – Building Long Text: + or join()? (6 Marks)
+1. Three implementations
+import time
+Page 4
+logeshwaran EM | Register No. 1912260240 | CSA08 Assignment 2
+def build_plus(parts):
+    text = ""
+    for p in parts:
+        text += p + ";"
+    return text
+def build_join(parts):
+    return ";".join(parts) + (";" if parts else "")
+def build_fstring(parts):
+    lines = [f"{p};" for p in parts]
+    return "".join(lines)
+The f-string is used to create each individual line; the final concatenation still uses join(). An f-string formats values but
+does not, by itself, solve the repeated-string-building problem.
+2. Sample measured results
+The following averages were measured in this report-generation environment over three runs. They are illustrative only:
+processor, Python version and system load affect timings. Record your own three runs for submission.
+Lines
++= mean (s)
+join mean (s)
+Length
+Same text
+1000
+10000
+200000
+0.00013
+0.00141
+0.02859
+3. Explanation and alternative
+0.00005
+0.00059
+0.01176
+12690
+136890
+3048890
+True
+True
+True
+Strings are immutable, so a repeated += operation may create a new string and copy existing characters. In the worst
+case, repeated concatenation can copy O(n²) total characters. join() first knows the parts and can allocate the output
+efficiently, giving O(n) time in the total output size. CPython may optimise some += patterns, but join() remains predictable,
+readable and efficient.
+# File streaming: avoids holding the entire statement in memory
+def write_statement(path, parts):
+    with open(path, "w", encoding="utf-8") as f:
+        for p in parts:
+            f.write(p)
+            f.write(";")
+# StringIO: convenient file-like in-memory builder
+from io import StringIO
+def build_stringio(parts):
+    out = StringIO()
+    for p in parts:
+        out.write(p)
+        out.write(";")
+    return out.getvalue()
+join() needs memory for the list of parts plus the final string. StringIO stores the built content in memory and returns a final
+string when requested. Writing directly to a file uses much less peak memory for the final text, but the result is on disk
+rather than returned as one in-memory string. All methods require O(n) output work when implemented efficiently;
+repeated += can be O(n²) in the worst case.
+Q5 – Functions, Parameters and Scope (7 Marks)
+1. Mutable default argument bug
+The default list in def add_item_buggy(item, order=[]) is created once when the function is defined. Every call that omits
+order reuses the same list, so one customer's items appear in the next customer's order.
+def add_item_buggy(item, order=[]):
+    order.append(item)
+    return order
+def add_item(item, order=None):
+    if order is None:
+        order = []
+    order.append(item)
+    return order
+print(add_item_buggy("Tea"), add_item_buggy("Vada"))
+print(add_item("Tea"), add_item("Vada"))
+Page 5
+logeshwaran EM | Register No. 1912260240 | CSA08 Assignment 2
+print("defaults:", add_item_buggy.__defaults__)
+Expected output:
+['Tea', 'Vada'] ['Tea', 'Vada']
+['Tea'] ['Vada']
+defaults: (['Tea', 'Vada'],)
+The defaults tuple contains the same list object that was mutated by the two buggy calls.
+2. Parameter types and multiple return values
+Positional parameters are matched by order; keyword parameters are matched by name and improve clarity; default
+parameters make an argument optional. A function can return multiple values as a tuple, for example return total, gst. The
+caller can unpack them using total, gst = calculate_bill(...).
+def calculate_bill(amount, gst_rate=0.05):
+    gst = amount * gst_rate
+    total = amount + gst
+    return total, gst
+total, gst = calculate_bill(200, gst_rate=0.05)
+print(total, gst)
+3. Local, global and nonlocal scope
+count = 10                 # global name
+def show_local():
+    count = 2              # local to this function
+    return count
+def change_global():
+    global count
+    count = 20
+def make_counter():
+    value = 0              # enclosing (nonlocal) scope
+    def increment():
+        nonlocal value
+        value += 1
+        return value
+    return increment
+print(show_local())       # 2
+change_global()
+print(count)              # 20
+counter = make_counter()
+print(counter(), counter())  # 1 2
+A local name exists within its function. A global name is defined at module level. A nonlocal name refers to a variable in the
+nearest enclosing function scope. The global keyword is required when assigning to a global name inside a function;
+without it, Python treats the assigned name as local. Avoid changing globals where possible because it creates hidden
+dependencies; parameters and return values are easier to test.
+4. Three independent customers and alternative
+orders = []
+for customer_items in (["Tea"], ["Vada", "Coffee"], ["Idli"]):
+    order = []
+    for item in customer_items:
+        add_item(item, order)
+    orders.append(order)
+print(orders)
+# [['Tea'], ['Vada', 'Coffee'], ['Idli']]
+If the caller always passes a fresh list explicitly, the function can simply append to that list; this makes ownership clear. A
+closure can also create and retain a separate order for one customer. Each append is O(1) amortised time; storage is
+O(m) for m items in that customer's order. The None-default approach is convenient and also creates a fresh list for each
+call that omits the argument.
+Q6 – Recursion and Its Limits (8 Marks)
+1. Recursive solution and call tree
+from functools import lru_cache
+def ways_naive(n):
+Page 6
+logeshwaran EM | Register No. 1912260240 | CSA08 Assignment 2
+    if n <= 1:
+        return 1
+    return ways_naive(n - 1) + ways_naive(n - 2)
+@lru_cache(maxsize=None)
+def ways_memo(n):
+    if n <= 1:
+        return 1
+    return ways_memo(n - 1) + ways_memo(n - 2)
+def ways_loop(n):
+    if n <= 1:
+        return 1
+    prev2, prev1 = 1, 1
+    for _ in range(2, n + 1):
+        prev2, prev1 = prev1, prev1 + prev2
+    return prev1
+Base case: n £ 1 returns 1. Recursive case: ways(n) = ways(n-1) + ways(n-2), because the first move can be either one or
+two steps.
+Call tree for n = 5 (repeated subproblems are shown more than once):
+ways(5)
+nnn ways(4)
+n   nnn ways(3)
+n   n   nnn ways(2)
+n   n   nnn ways(1)
+n   nnn ways(2)
+nnn ways(3)
+nnn ways(2)
+nnn ways(1)
+The same values such as ways(3) and ways(2) are calculated repeatedly. Memoisation stores each result and reuses it.
+2. Hand-check answers
+n = 1: 1; n = 2: 2; n = 3: 3; n = 4: 5; n = 5: 8; n = 6: 13.
+3. Function-call investigation
+n
+Naive result
+Naive calls
+10
+89
+177
+Memo result
+89
+Memo calls
+11
+20
+25
+30
+10946
+121393
+1346269
+21,891
+242,785
+2,692,537
+10946
+121393
+1346269
+21
+26
+31
+The naive method grows exponentially, O(fn), where f is the golden ratio. Memoisation computes each input from 0
+through n once, so it takes O(n) time and O(n) cache plus recursion-stack space.
+4. n = 1,000 and deployment decision
+The memoised recursive version may raise RecursionError at n = 1,000 because Python has a finite recursion limit
+(inspect it with sys.getrecursionlimit()). The number of cached states is linear, but the call depth is also approximately n.
+Raising the recursion limit can risk exhausting the interpreter stack and is not the best deployment choice.
+The iterative version uses O(n) time and O(1) extra space and avoids recursion depth limits. For a requirement of up to
+1,000 steps, I would deploy the loop version. The recursive and memoised versions are useful for explaining the
+recurrence and repeated work; the loop is more robust for the stated input size.
+import sys
+print("recursion limit:", sys.getrecursionlimit())
+print(ways_loop(1000))
+# ways_memo(1000) may raise RecursionError on the default limit.
+5. Complexity comparison
+Naive recursion: O(fn) time and O(n) stack. Memoised recursion: O(n) time and O(n) cache/stack. Iterative two-variable
+method: O(n) time and O(1) auxiliary space.
+Q7 – Diagnose, Redesign and Validate (13 Marks)
+Page 7
+logeshwaran EM | Register No. 1912260240 | CSA08 Assignment 2
+Selected program: Q6 – naive recursive step counter
+A. Diagnose the bottleneck. The naive recursive program recalculates identical subproblems. The number of calls grows
+exponentially as n increases. For example, the measured call counts above rise from a small count at n=10 to a very large
+count at n=30.
+B. Design objective. Compute the number of ways for n up to 1,000 in linear time, without recursion errors, while keeping
+auxiliary memory constant.
+C. Revised design. Use two variables to retain only the previous two answers. At each step, the new answer is their sum;
+then shift the two variables forward. This uses O(1) extra memory and avoids storing a full table.
+def ways_redesigned(n):
+    if n <= 1:
+        return 1
+    previous_two = 1
+    previous_one = 1
+    for step in range(2, n + 1):
+        current = previous_one + previous_two
+        previous_two = previous_one
+        previous_one = current
+    return previous_one
+Pseudocode: set previous_two = 1 and previous_one = 1; repeat from step 2 through n; calculate current = previous_one +
+previous_two; shift the two saved values; return previous_one.
+D. Prediction before implementing. I predict the redesigned method will take O(n) additions and O(1) auxiliary space. It
+should be much faster than naive recursion for larger n and should complete n=1,000 without RecursionError.
+E. Implementation and validation. Use identical inputs and compare results from the memoised and iterative methods for
+small n; then run the iterative method for n=1,000. The first six values must be 1, 2, 3, 5, 8, 13. The iterative method should
+match the memoised result for values where recursion is safe.
+for n in range(1, 7):
+    print(n, ways_redesigned(n))
+print("n=1000 computed:", ways_redesigned(1000) > 0)
+F. Final evaluation. The objective is achieved: the loop is linear in n, uses constant auxiliary memory and avoids recursion
+depth limits. Its trade-off is that it is less directly aligned with the mathematical recursive definition, so the recursive version
+may be easier to teach. For production use with n up to 1,000, the iterative design is preferable.
+Complexity summary
+Approach
+Time
+Auxiliary space
+Limitation / advantage
+Naive recursion
+Memoised recursion
+O(fn)
+O(n)
+O(n) stack
+Repeated work
+O(n) cache + stack
+Iterative two-value
+O(n)
+O(1)
+Final Submission Checklist
+• Create a GitHub repository named CSA08
+1912260240
+Fast but recursion depth
+Best fit for n up to 1,000-Assignment2.
+• Create one folder for each task (Q1 to Q7) and save the executed .py files.
+• Include input files and screenshots of actual program output.
+• Add README.md with name, register number, Python version, libraries, run commands and short result notes.
+• Commit progressively, with at least one commit per task.
+• Paste the working GitHub link on the report cover page and in the submission field.
+• Replace sample timing values with measurements from your own computer and verify every program before uploading.
+Page 8
+logeshwaran EM | Register No. 1912260240 | CSA08 Assignment 2
